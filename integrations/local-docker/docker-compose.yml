@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: openbrain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mcp-server:
+    build:
+      context: ../kubernetes-deployment
+      dockerfile: Dockerfile
+    container_name: openbrain-mcp
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      EMBEDDING_API_BASE: ${EMBEDDING_API_BASE}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      CHAT_API_BASE: ${CHAT_API_BASE}
+      CHAT_API_KEY: ${CHAT_API_KEY}
+      CHAT_MODEL: ${CHAT_MODEL}
+      MCP_ACCESS_KEY: ${MCP_ACCESS_KEY}
+    ports:
+      - "127.0.0.1:${MCP_PORT}:8000"
+
+volumes:
+  pgdata:
