@@ -8,8 +8,8 @@
   "version": "0.1.0",
   "requires": {
     "open_brain": true,
-    "services": ["Docker", "PostgreSQL", "pgvector"],
-    "tools": ["docker", "docker compose", "psql", "pg_dump"]
+    "services": ["OpenAI-compatible embedding/chat API (OpenRouter, OpenAI, or self-hosted)"],
+    "tools": ["Docker", "Docker Compose", "psql", "pg_dump"]
   },
   "tags": ["docker", "docker-compose", "self-hosted", "postgresql", "pgvector", "local", "air-gap", "migration"],
   "difficulty": "intermediate",
