@@ -69,7 +69,16 @@ async function getEmbedding(text: string): Promise<number[]> {
     throw new Error(`Embedding API failed: ${r.status} ${msg}`);
   }
   const d = await r.json();
-  return d.data[0].embedding;
+  const embedding = d?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) {
+    // Guard against 200-status responses with a non-standard body
+    // (e.g. the provider returning an error-shaped object without a
+    // `data` array). Without this, the bare d.data[0] read throws
+    // "Cannot read properties of undefined (reading '0')", which
+    // surfaces as a cryptic tool error with no clue what went wrong.
+    throw new Error(`Embedding API: unexpected response shape: ${JSON.stringify(d).slice(0, 300)}`);
+  }
+  return embedding;
 }
 
 async function extractMetadata(text: string): Promise<Record<string, unknown>> {
