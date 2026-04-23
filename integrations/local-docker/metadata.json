@@ -1,0 +1,19 @@
+{
+  "name": "Local Docker Self-Hosted Deployment",
+  "description": "Run Open Brain on a local Docker Compose stack (PostgreSQL + pgvector + MCP server) as a drop-in alternative to Supabase. Includes a data-only migration workflow from an existing Supabase project.",
+  "category": "integrations",
+  "author": {
+    "name": "Michael Saucier"
+  },
+  "version": "0.1.0",
+  "requires": {
+    "open_brain": true,
+    "services": ["OpenAI-compatible embedding/chat API (OpenRouter, OpenAI, or self-hosted)"],
+    "tools": ["Docker", "Docker Compose", "psql", "pg_dump"]
+  },
+  "tags": ["docker", "docker-compose", "self-hosted", "postgresql", "pgvector", "local", "air-gap", "migration"],
+  "difficulty": "intermediate",
+  "estimated_time": "20 minutes",
+  "created": "2026-04-17",
+  "updated": "2026-04-17"
+}
