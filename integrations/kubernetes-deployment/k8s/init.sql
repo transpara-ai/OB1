@@ -9,11 +9,36 @@ CREATE TABLE IF NOT EXISTS thoughts (
     content TEXT NOT NULL,
     embedding vector(1536),
     metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    content_fingerprint TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Idempotent adds for existing deployments that predate fingerprint/updated_at.
+ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS content_fingerprint TEXT;
+ALTER TABLE thoughts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_thoughts_created_at ON thoughts (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_thoughts_metadata ON thoughts USING GIN (metadata);
+
+-- Partial unique index enables ON CONFLICT dedup without blocking NULL rows.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_thoughts_fingerprint
+    ON thoughts (content_fingerprint)
+    WHERE content_fingerprint IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS thoughts_updated_at ON thoughts;
+CREATE TRIGGER thoughts_updated_at
+    BEFORE UPDATE ON thoughts
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
 
 -- match_thoughts function for vector similarity search
 -- This replaces the Supabase RPC function

@@ -390,9 +390,22 @@ server.registerTool(
 
       const client = await pool.connect();
       try {
+        // DB-computed fingerprint keeps dedup consistent with the canonical
+        // upsert_thought() definition (same normalization, same hash).
         await client.queryObject(
-          `INSERT INTO thoughts (content, embedding, metadata)
-           VALUES ($1, $2::vector, $3::jsonb)`,
+          `INSERT INTO thoughts (content, content_fingerprint, embedding, metadata)
+           VALUES (
+             $1,
+             encode(sha256(convert_to(
+               lower(trim(regexp_replace($1, '\\s+', ' ', 'g'))),
+               'UTF8'
+             )), 'hex'),
+             $2::vector,
+             $3::jsonb
+           )
+           ON CONFLICT (content_fingerprint) WHERE content_fingerprint IS NOT NULL
+           DO UPDATE SET updated_at = now(),
+                         metadata   = thoughts.metadata || EXCLUDED.metadata`,
           [content, embStr, JSON.stringify(meta)]
         );
       } finally {
