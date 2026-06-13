@@ -6,6 +6,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
+// Local, dependency-free response shaping — shared with the Node unit test
+// (test-capture-response.mjs) so the capture contract is provable without infra.
+import { buildCaptureResult } from "./capture-response.mjs";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
@@ -473,38 +477,32 @@ function buildServer(): McpServer {
           p_payload: { metadata: { ...metadata, source: "mcp" } },
         });
 
-        if (upsertError) {
-          return {
-            content: [{ type: "text" as const, text: `Failed to capture: ${upsertError.message}` }],
-            isError: true,
-          };
+        // upsertResult is the jsonb returned by upsert_thought ({ id, fingerprint }).
+        // Validate the id's shape at this RPC boundary rather than trusting it: a
+        // non-string id collapses to undefined, which buildCaptureResult treats as
+        // "unconfirmed" (fail closed) instead of a silent success.
+        const rawId: unknown = upsertResult?.id;
+        const thoughtId: string | undefined = typeof rawId === "string" ? rawId : undefined;
+
+        // Attach the embedding only once the row is durably committed with an
+        // id. The embedding is best-effort: if it fails — whether the client
+        // RETURNS an error or the request THROWS (e.g. a network blip after the
+        // row was already committed) — the thought is still saved, so we capture
+        // the failure and let buildCaptureResult report it as "pending" rather
+        // than as a capture failure (which would make callers retry the thought).
+        let embError: { message: string } | null = null;
+        if (!upsertError && thoughtId) {
+          try {
+            ({ error: embError } = await supabase
+              .from("thoughts")
+              .update({ embedding })
+              .eq("id", thoughtId));
+          } catch (e: unknown) {
+            embError = { message: (e as Error).message };
+          }
         }
 
-        const thoughtId = upsertResult?.id;
-        const { error: embError } = await supabase
-          .from("thoughts")
-          .update({ embedding })
-          .eq("id", thoughtId);
-
-        if (embError) {
-          return {
-            content: [{ type: "text" as const, text: `Failed to save embedding: ${embError.message}` }],
-            isError: true,
-          };
-        }
-
-        const meta = metadata as Record<string, unknown>;
-        let confirmation = `Captured as ${meta.type || "thought"}`;
-        if (Array.isArray(meta.topics) && meta.topics.length)
-          confirmation += ` — ${(meta.topics as string[]).join(", ")}`;
-        if (Array.isArray(meta.people) && meta.people.length)
-          confirmation += ` | People: ${(meta.people as string[]).join(", ")}`;
-        if (Array.isArray(meta.action_items) && meta.action_items.length)
-          confirmation += ` | Actions: ${(meta.action_items as string[]).join("; ")}`;
-
-        return {
-          content: [{ type: "text" as const, text: confirmation }],
-        };
+        return buildCaptureResult({ upsertError, thoughtId, embError, metadata });
       } catch (err: unknown) {
         return {
           content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
