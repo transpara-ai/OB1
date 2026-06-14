@@ -80,6 +80,20 @@ console.log("\n[4] Committed but NO id returned — unverifiable → fail closed
   assert(/unconfirmed/i.test(textOf(res)) && /id/i.test(textOf(res)), "explains it is unconfirmed for lack of an id");
 }
 
+console.log("\n[5] Embedding failure with an EMPTY message — note must not render empty parens");
+{
+  const res = buildCaptureResult({
+    upsertError: null,
+    thoughtId: "55555555-aaaa-bbbb-cccc-666666666666",
+    embError: { message: "" },
+    metadata: { type: "note" },
+  });
+  assert(res.isError !== true, "still a success — the thought is committed");
+  assert(textOf(res).includes("embedding: pending"), "reports embedding: pending");
+  assert(textOf(res).includes("unknown error"), "empty embedding-error message falls back to 'unknown error'");
+  assert(!/failed \(\)/.test(textOf(res)), "no empty parens in the note");
+}
+
 console.log(`\n${"─".repeat(50)}`);
 console.log(`${passed + failed} assertions: ${passed} passed, ${failed} failed`);
 if (failed > 0) {
