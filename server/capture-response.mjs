@@ -68,7 +68,7 @@ export function buildCaptureResult({ upsertError, thoughtId, embError, metadata 
     text += ` | Actions: ${meta.action_items.join("; ")}`;
 
   if (!embeddingReady)
-    text += ` | NOTE: the thought is saved and retrievable; the embedding update failed (${embError.message}) and can be backfilled — semantic search may miss it until then.`;
+    text += ` | NOTE: the thought is saved and retrievable; the embedding update failed (${embError.message || "unknown error"}) and can be backfilled — semantic search may miss it until then.`;
 
   // No isError: the thought IS durably captured.
   return { content: [{ type: "text", text }] };
